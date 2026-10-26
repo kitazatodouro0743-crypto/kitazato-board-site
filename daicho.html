@@ -31,7 +31,7 @@
   .chips button { flex: 1 1 auto; min-height: 48px; padding: 8px 12px; font-size: 16px; border-radius: 10px;
                   border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   .chips button[aria-pressed="true"] { background: var(--on); border-color: var(--accent); color: var(--accent); font-weight: 700; }
-  input[type=text], input[type=password], textarea { width: 100%; font-size: 17px; padding: 12px; border-radius: 10px;
+  select, input[type=text], input[type=password], textarea { width: 100%; font-size: 17px; padding: 12px; border-radius: 10px;
          border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   textarea { min-height: 64px; }
   .hint { color: var(--sub); font-size: 14px; margin-top: 6px; }
@@ -80,6 +80,7 @@
     <div class="q"><span class="lab">会社</span><div class="chips" data-name="company">
       <button type="button">北里道路</button><button type="button">合原技建</button><button type="button">緒方工業</button>
     </div></div>
+    <div class="q" id="whoQ" hidden><label for="whoSel">登録する人</label><select id="whoSel"></select></div>
     <div class="q"><span class="lab">区分</span><div class="chips" data-name="kubun">
       <button type="button">元請公共</button><button type="button">下請公共</button><button type="button">元請民間</button>
       <button type="button">下請民間</button><button type="button">その他</button>
@@ -88,6 +89,7 @@
       <label for="hacchusha">発注者名</label>
       <input id="hacchusha" type="text" list="hacchushaList" autocomplete="off" placeholder="例: 南小国町、大仁産業">
       <datalist id="hacchushaList"></datalist>
+      <div class="hint" id="hacchushaHint">打ち始めると、台帳にある書き方が候補に出ます。</div>
     </div>
     <div class="q"><span class="lab">工種</span><div class="chips" data-name="koshu">
       <button type="button">舗装</button><button type="button">土木</button><button type="button">その他</button>
@@ -138,6 +140,7 @@
       <div class="big wait">待機中…</div>
       <div>あかさが台帳に登録しています。<br><span id="waitSec">0</span>秒（30秒〜1分ほどかかります）</div>
     </div>
+    <dl class="conf sent"></dl>
   </section>
 
   <!-- 完了 -->
@@ -146,6 +149,8 @@
       <div class="big" id="doneTitle">登録完了しました</div>
       <div id="doneBody" class="result"></div>
     </div>
+    <p class="hint">送った内容</p>
+    <dl class="conf sent"></dl>
   </section>
 </main>
 
@@ -154,7 +159,7 @@
 <script>
 // 受信箱GAS（あかさの受付）。合言葉はここには書かない＝初回にスマホへ覚えさせる
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwk_MrojaVlJg-qCAATXn89gpz3BGrZCtXTg4YUuY3IcyAB_O-KvPPSL-S4ZVUNKK6T/exec";
-const LS_KEY = "daichoFormKey", LS_HIST = "daichoFormHacchusha";
+const LS_KEY = "daichoFormKey", LS_LISTS = "daichoFormLists", LS_WHO = "daichoFormWho";
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -162,7 +167,35 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
-const state = { company: "", kubun: "", koshu: "", yotei: "1" };
+const state = { company: "", who: "", kubun: "", koshu: "", yotei: "1" };
+
+// 登録する人・発注者名の一覧は合言葉が合ったときに受信箱GASからもらう（公開のソースに名前を書かないため）
+function lists() { try { return JSON.parse(store.get(LS_LISTS) || "{}"); } catch (e) { return {}; } }
+function saveLists(r) { store.set(LS_LISTS, JSON.stringify({ staff: r.staff || {}, hacchusha: r.hacchusha || {} })); }
+function renderCompany() { renderWho(); renderHacchusha(); }
+
+// 発注者名は手入力。選んだ会社の台帳にある書き方を候補に出す
+function renderHacchusha() {
+  const names = (lists().hacchusha || {})[state.company] || [];
+  $("hacchushaList").innerHTML = "";
+  for (const n of names) { const o = document.createElement("option"); o.value = n; $("hacchushaList").appendChild(o); }
+}
+
+// 登録する人はプルダウン。前回この会社で選んだ人を最初から選んでおく
+function renderWho() {
+  const names = (lists().staff || {})[state.company] || [];
+  $("whoQ").hidden = !state.company;
+  let last = {};
+  try { last = JSON.parse(store.get(LS_WHO) || "{}"); } catch (e) {}
+  if (!names.includes(state.who)) state.who = names.includes(last[state.company]) ? last[state.company] : "";
+  const sel = $("whoSel");
+  sel.innerHTML = "";
+  for (const [v, t] of [["", "選んでください"], ...names.map((n) => [n, n])]) {
+    const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o);
+  }
+  sel.value = state.who;
+}
+$("whoSel").addEventListener("change", () => { state.who = $("whoSel").value; });
 
 function show(view) {
   for (const v of ["vKey", "vForm", "vConf", "vWait", "vDone"]) $(v).hidden = v !== view;
@@ -199,7 +232,7 @@ async function checkKey() {
   const btn = $("bar").firstChild; btn.disabled = true; btn.textContent = "確かめています…";
   try {
     const r = await post({ action: "daichoForm", key: k, check: true });
-    if (r.ok) { store.set(LS_KEY, k); show("vForm"); return; }
+    if (r.ok) { store.set(LS_KEY, k); saveLists(r); renderCompany(); show("vForm"); return; }
     err.textContent = r.error || "合言葉が違います"; err.hidden = false;
   } catch (e) {
     err.textContent = "つながりませんでした。電波の良いところでもう一度"; err.hidden = false;
@@ -215,26 +248,26 @@ document.querySelectorAll(".chips").forEach((box) => {
   box.addEventListener("click", (ev) => {
     const b = ev.target.closest("button"); if (!b) return;
     state[name] = b.dataset.v || b.textContent; sync();
+    if (name === "company") renderCompany();
   });
   sync();
 });
 
-function loadHistory() {
-  let list = [];
-  try { list = JSON.parse(store.get(LS_HIST) || "[]"); } catch (e) {}
-  $("hacchushaList").innerHTML = list.map((h) => `<option value="${h.replace(/"/g, "&quot;")}">`).join("");
-  return list;
-}
-function saveHistory(h) {
-  const list = loadHistory().filter((x) => x !== h);
-  list.unshift(h);
-  store.set(LS_HIST, JSON.stringify(list.slice(0, 30)));
+// 手で打った発注者名が、全角半角の違いだけで台帳にある名前と同じなら、台帳の書き方に直す（ＪＡ阿蘇／JA阿蘇）
+function hacchushaValue() {
+  const typed = $("hacchusha").value.trim();
+  const names = (lists().hacchusha || {})[state.company] || [];
+  if (!typed || names.includes(typed)) return { name: typed, note: "" };
+  const key = (s) => s.normalize("NFKC").replace(/\s/g, "");
+  const hit = names.find((n) => key(n) === key(typed));
+  if (hit) return { name: hit, note: "（台帳の書き方に合わせました）" };
+  return { name: typed, note: names.length ? "（台帳に無い発注者）" : "" };
 }
 
 function formData() {
   return {
-    company: state.company, kubun: state.kubun, koshu: state.koshu, yotei: state.yotei === "1",
-    hacchusha: $("hacchusha").value.trim(), kojimei: $("kojimei").value.trim(), memo: $("memo").value.trim(),
+    company: state.company, who: state.who, kubun: state.kubun, koshu: state.koshu, yotei: state.yotei === "1",
+    hacchusha: hacchushaValue().name, kojimei: $("kojimei").value.trim(), memo: $("memo").value.trim(),
     kingaku: $("kingaku").value.normalize("NFKC").replace(/[^0-9]/g, ""),
   };
 }
@@ -243,6 +276,7 @@ function toConfirm() {
   const d = formData();
   const miss = [];
   if (!d.company) miss.push("会社");
+  else if (!d.who) miss.push("登録する人");
   if (!d.kubun) miss.push("区分");
   if (!d.hacchusha) miss.push("発注者名");
   if (!d.koshu) miss.push("工種");
@@ -250,7 +284,9 @@ function toConfirm() {
   const err = $("formErr");
   if (miss.length) { err.textContent = "まだ入っていません: " + miss.join("・"); err.hidden = false; return; }
   err.hidden = true;
-  const rows = [["会社", d.company], ["区分", d.kubun], ["発注者名", d.hacchusha], ["工種", d.koshu],
+  const hv = hacchushaValue();
+  const rows = [["会社", d.company], ["登録する人", d.who], ["区分", d.kubun],
+    ["発注者名", d.hacchusha + hv.note], ["工種", d.koshu],
     ["工事名", d.kojimei], ["予定登録", d.yotei ? "はい（見積依頼だけ）" : "いいえ（施工が決まっている）"]];
   if (d.kingaku) rows.push(["初回金額", Number(d.kingaku).toLocaleString("ja-JP") + " 円（税込）"]);
   if (d.memo) rows.push(["メモ", d.memo]);
@@ -273,7 +309,11 @@ async function send() {
   const err = $("sendErr");
   try {
     const r = await post({ action: "daichoForm", key: store.get(LS_KEY), data: d });
-    if (r.ok) { saveHistory(d.hacchusha); waitResult(r.row); return; }
+    if (r.ok) {
+      let last = {}; try { last = JSON.parse(store.get(LS_WHO) || "{}"); } catch (e) {}
+      last[d.company] = d.who; store.set(LS_WHO, JSON.stringify(last));
+      waitResult(r.row); return;
+    }
     if (r.error === "合言葉が違います") { store.del(LS_KEY); show("vKey"); return; }
     err.textContent = r.error || "登録できませんでした";
   } catch (e) {
@@ -286,6 +326,8 @@ async function send() {
 
 // あかさの登録が終わるまで受信箱に聞きに行く。番人がフォームの行にだけ返事を残している
 async function waitResult(row) {
+  // 確認画面で見せた内容を、待機中と完了の画面にも写す
+  document.querySelectorAll("dl.sent").forEach((dl) => { dl.innerHTML = $("confList").innerHTML; });
   show("vWait");
   const start = Date.now();
   const tick = setInterval(() => { $("waitSec").textContent = Math.floor((Date.now() - start) / 1000); }, 1000);
@@ -306,13 +348,23 @@ async function waitResult(row) {
 function reset() {
   Object.assign(state, { company: state.company, kubun: "", koshu: "", yotei: "1" });
   for (const id of ["hacchusha", "kojimei", "kingaku", "memo"]) $(id).value = "";
+  renderCompany();
   document.querySelectorAll(".chips").forEach((box) => box.querySelectorAll("button").forEach((b) =>
     b.setAttribute("aria-pressed", String((b.dataset.v || b.textContent) === state[box.dataset.name]))));
   show("vForm");
 }
 
-loadHistory();
-show(store.get(LS_KEY) ? "vForm" : "vKey");
+if (store.get(LS_KEY)) {
+  renderCompany();
+  show("vForm");
+  // 一覧を取り直す（人・発注者が増えたとき・合言葉が変わったとき用）。電波が無ければ手元の一覧のまま
+  post({ action: "daichoForm", key: store.get(LS_KEY), check: true }, 15000).then((r) => {
+    if (r.ok) { saveLists(r); renderCompany(); }
+    else if (r.error === "合言葉が違います") { store.del(LS_KEY); show("vKey"); }
+  }).catch(() => {});
+} else {
+  show("vKey");
+}
 </script>
 </body>
 </html>
