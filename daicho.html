@@ -34,6 +34,10 @@
   select, input[type=text], input[type=password], textarea { width: 100%; font-size: 17px; padding: 12px; border-radius: 10px;
          border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   textarea { min-height: 64px; }
+  .sugg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sugg:empty { display: none; }
+  .sugg button { min-height: 40px; padding: 6px 10px; font-size: 15px; border-radius: 8px;
+                 border: 1px solid var(--line); background: var(--on); color: var(--ink); }
   .hint { color: var(--sub); font-size: 14px; margin-top: 6px; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg); border-top: 1px solid var(--line);
          padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
@@ -87,9 +91,9 @@
     </div></div>
     <div class="q">
       <label for="hacchusha">発注者名</label>
-      <input id="hacchusha" type="text" list="hacchushaList" autocomplete="off" placeholder="例: 南小国町、大仁産業">
-      <datalist id="hacchushaList"></datalist>
-      <div class="hint" id="hacchushaHint">打ち始めると、台帳にある書き方が候補に出ます。</div>
+      <input id="hacchusha" type="text" autocomplete="off" placeholder="例: 南小国町、大仁産業">
+      <div class="sugg" id="hacchushaSugg"></div>
+      <div class="hint" id="hacchushaHint">先に会社を選ぶと、台帳にある書き方が候補に出ます。</div>
     </div>
     <div class="q"><span class="lab">工種</span><div class="chips" data-name="koshu">
       <button type="button">舗装</button><button type="button">土木</button><button type="button">その他</button>
@@ -174,12 +178,35 @@ function lists() { try { return JSON.parse(store.get(LS_LISTS) || "{}"); } catch
 function saveLists(r) { store.set(LS_LISTS, JSON.stringify({ staff: r.staff || {}, hacchusha: r.hacchusha || {} })); }
 function renderCompany() { renderWho(); renderHacchusha(); }
 
-// 発注者名は手入力。選んだ会社の台帳にある書き方を候補に出す
+// 発注者名は手入力。選んだ会社の台帳にある書き方を、欄の下にボタンで出す
+// （datalist はスマホのブラウザによって候補が出ないので使わない）
+function hacchushaNames() { return (lists().hacchusha || {})[state.company] || []; }
 function renderHacchusha() {
-  const names = (lists().hacchusha || {})[state.company] || [];
-  $("hacchushaList").innerHTML = "";
-  for (const n of names) { const o = document.createElement("option"); o.value = n; $("hacchushaList").appendChild(o); }
+  const names = hacchushaNames();
+  $("hacchushaHint").textContent = !state.company ? "先に会社を選ぶと、台帳にある書き方が候補に出ます。"
+    : names.length ? "台帳に " + names.length + " 件。押すとそのまま入ります。無ければ手で打ってください。"
+    : "候補の一覧が届いていません（手で打てば登録できます）。";
+  showSugg();
 }
+function showSugg() {
+  const box = $("hacchushaSugg");
+  box.innerHTML = "";
+  if (document.activeElement !== $("hacchusha")) return;
+  const key = (s) => s.normalize("NFKC").replace(/\s/g, "").toLowerCase();
+  const q = key($("hacchusha").value);
+  const names = hacchushaNames();
+  if (q && names.some((n) => n === $("hacchusha").value.trim())) return;  // 候補どおり入っていれば閉じる
+  for (const n of names.filter((n) => !q || key(n).includes(q)).slice(0, 8)) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = n;
+    // 押した瞬間に欄からフォーカスが外れて候補が消えないよう、mousedown/touchstart で先に入れる
+    b.addEventListener("pointerdown", (ev) => { ev.preventDefault(); $("hacchusha").value = n; box.innerHTML = ""; $("hacchusha").blur(); });
+    box.appendChild(b);
+  }
+}
+$("hacchusha").addEventListener("focus", showSugg);
+$("hacchusha").addEventListener("input", showSugg);
+$("hacchusha").addEventListener("blur", () => setTimeout(() => { $("hacchushaSugg").innerHTML = ""; }, 150));
 
 // 登録する人はプルダウン。前回この会社で選んだ人を最初から選んでおく
 function renderWho() {
