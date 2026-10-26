@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>台帳登録</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #fff; --ink: #1d1d1b; --sub: #6b6a66; --line: #d9d6cf;
+    --accent: #1f5fae; --accent-ink: #fff; --on: #e6eefa; --err: #b3261e; --ok: #1e7a3c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --card: #22221f; --ink: #eceae4; --sub: #a3a199; --line: #3a3934;
+      --accent: #6aa3ef; --accent-ink: #0d1b2e; --on: #1c2a3e; --err: #f2867d; --ok: #6fcf8f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --card: #22221f; --ink: #eceae4; --sub: #a3a199; --line: #3a3934;
+    --accent: #6aa3ef; --accent-ink: #0d1b2e; --on: #1c2a3e; --err: #f2867d; --ok: #6fcf8f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 17px/1.5 system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 16px 16px 120px; }
+  h1 { font-size: 20px; margin: 4px 0 16px; }
+  .q { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .q > label, .q > .lab { display: block; font-weight: 600; margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button { flex: 1 1 auto; min-height: 48px; padding: 8px 12px; font-size: 16px; border-radius: 10px;
+                  border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .chips button[aria-pressed="true"] { background: var(--on); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  input[type=text], input[type=password], textarea { width: 100%; font-size: 17px; padding: 12px; border-radius: 10px;
+         border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  textarea { min-height: 64px; }
+  .hint { color: var(--sub); font-size: 14px; margin-top: 6px; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg); border-top: 1px solid var(--line);
+         padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .bar .in { max-width: 520px; margin: 0 auto; display: flex; gap: 8px; }
+  .btn { flex: 1; min-height: 52px; font-size: 18px; font-weight: 700; border-radius: 12px; border: 0;
+         background: var(--accent); color: var(--accent-ink); }
+  .btn.sub { background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+  .btn:disabled { opacity: .5; }
+  .err { color: var(--err); font-weight: 600; margin: 8px 0; }
+  dl.conf { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; margin: 0 0 12px; }
+  dl.conf div { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  dl.conf div:last-child { border-bottom: 0; }
+  dl.conf dt { color: var(--sub); width: 5.5em; flex: none; }
+  dl.conf dd { margin: 0; font-weight: 600; word-break: break-all; }
+  .done { text-align: center; padding: 32px 8px; }
+  .done .big { font-size: 22px; font-weight: 700; color: var(--ok); margin-bottom: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <!-- 合言葉（初回だけ） -->
+  <section id="vKey" hidden>
+    <h1>台帳登録</h1>
+    <div class="q">
+      <label for="key">合言葉</label>
+      <input id="key" type="password" autocomplete="off">
+      <div class="hint">最初の1回だけです。このスマホに覚えさせます。</div>
+    </div>
+    <p id="keyErr" class="err" hidden></p>
+  </section>
+
+  <!-- 入力 -->
+  <section id="vForm" hidden>
+    <h1>台帳登録</h1>
+    <div class="q"><span class="lab">会社</span><div class="chips" data-name="company">
+      <button type="button">北里道路</button><button type="button">合原技建</button><button type="button">緒方工業</button>
+    </div></div>
+    <div class="q"><span class="lab">区分</span><div class="chips" data-name="kubun">
+      <button type="button">元請公共</button><button type="button">下請公共</button><button type="button">元請民間</button>
+      <button type="button">下請民間</button><button type="button">その他</button>
+    </div></div>
+    <div class="q">
+      <label for="hacchusha">発注者名</label>
+      <input id="hacchusha" type="text" list="hacchushaList" autocomplete="off" placeholder="例: 南小国町、大仁産業">
+      <datalist id="hacchushaList"></datalist>
+    </div>
+    <div class="q"><span class="lab">工種</span><div class="chips" data-name="koshu">
+      <button type="button">舗装</button><button type="button">土木</button><button type="button">その他</button>
+    </div></div>
+    <div class="q">
+      <label for="kojimei">工事名</label>
+      <input id="kojimei" type="text" autocomplete="off">
+    </div>
+    <div class="q"><span class="lab">予定登録（見積依頼だけ）</span><div class="chips" data-name="yotei">
+      <button type="button" data-v="1">はい</button><button type="button" data-v="0">いいえ（施工が決まっている）</button>
+    </div></div>
+    <div class="q">
+      <label for="memo">メモ（任意）</label>
+      <textarea id="memo" placeholder="見積期限・場所など"></textarea>
+    </div>
+    <p id="formErr" class="err" hidden></p>
+  </section>
+
+  <!-- 確認 -->
+  <section id="vConf" hidden>
+    <h1>この内容で登録します</h1>
+    <dl class="conf" id="confList"></dl>
+    <p class="hint">送ると、あかさが台帳に登録して、LINE WORKSに仕訳番号を返します（数十秒）。</p>
+    <p id="sendErr" class="err" hidden></p>
+  </section>
+
+  <!-- 完了 -->
+  <section id="vDone" hidden>
+    <div class="done">
+      <div class="big">受け付けました</div>
+      <div>まもなく LINE WORKS に<br>あかさから仕訳番号が届きます。</div>
+    </div>
+  </section>
+</main>
+
+<div class="bar"><div class="in" id="bar"></div></div>
+
+<script>
+// 受信箱GAS（あかさの受付）。合言葉はここには書かない＝初回にスマホへ覚えさせる
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbwk_MrojaVlJg-qCAATXn89gpz3BGrZCtXTg4YUuY3IcyAB_O-KvPPSL-S4ZVUNKK6T/exec";
+const LS_KEY = "daichoFormKey", LS_HIST = "daichoFormHacchusha";
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+const state = { company: "", kubun: "", koshu: "", yotei: "1" };
+
+function show(view) {
+  for (const v of ["vKey", "vForm", "vConf", "vDone"]) $(v).hidden = v !== view;
+  const bar = $("bar");
+  bar.innerHTML = "";
+  const add = (label, fn, sub) => {
+    const b = document.createElement("button");
+    b.className = "btn" + (sub ? " sub" : ""); b.textContent = label; b.onclick = fn; bar.appendChild(b); return b;
+  };
+  if (view === "vKey") add("はじめる", checkKey);
+  if (view === "vForm") add("確認へ", toConfirm);
+  if (view === "vConf") { add("戻る", () => show("vForm"), true); add("登録する", send); }
+  if (view === "vDone") add("続けて登録する", reset);
+  window.scrollTo(0, 0);
+}
+
+async function post(body, timeoutMs) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs || 30000);
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body), signal: ctl.signal,
+    });
+    return await res.json();
+  } finally { clearTimeout(t); }
+}
+
+async function checkKey() {
+  const k = $("key").value.trim();
+  const err = $("keyErr");
+  err.hidden = true;
+  if (!k) return;
+  const btn = $("bar").firstChild; btn.disabled = true; btn.textContent = "確かめています…";
+  try {
+    const r = await post({ action: "daichoForm", key: k, check: true });
+    if (r.ok) { store.set(LS_KEY, k); show("vForm"); return; }
+    err.textContent = r.error || "合言葉が違います"; err.hidden = false;
+  } catch (e) {
+    err.textContent = "つながりませんでした。電波の良いところでもう一度"; err.hidden = false;
+  }
+  btn.disabled = false; btn.textContent = "はじめる";
+}
+
+// 選択ボタン
+document.querySelectorAll(".chips").forEach((box) => {
+  const name = box.dataset.name;
+  const sync = () => box.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String((b.dataset.v || b.textContent) === state[name])));
+  box.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button"); if (!b) return;
+    state[name] = b.dataset.v || b.textContent; sync();
+  });
+  sync();
+});
+
+function loadHistory() {
+  let list = [];
+  try { list = JSON.parse(store.get(LS_HIST) || "[]"); } catch (e) {}
+  $("hacchushaList").innerHTML = list.map((h) => `<option value="${h.replace(/"/g, "&quot;")}">`).join("");
+  return list;
+}
+function saveHistory(h) {
+  const list = loadHistory().filter((x) => x !== h);
+  list.unshift(h);
+  store.set(LS_HIST, JSON.stringify(list.slice(0, 30)));
+}
+
+function formData() {
+  return {
+    company: state.company, kubun: state.kubun, koshu: state.koshu, yotei: state.yotei === "1",
+    hacchusha: $("hacchusha").value.trim(), kojimei: $("kojimei").value.trim(), memo: $("memo").value.trim(),
+  };
+}
+
+function toConfirm() {
+  const d = formData();
+  const miss = [];
+  if (!d.company) miss.push("会社");
+  if (!d.kubun) miss.push("区分");
+  if (!d.hacchusha) miss.push("発注者名");
+  if (!d.koshu) miss.push("工種");
+  if (!d.kojimei) miss.push("工事名");
+  const err = $("formErr");
+  if (miss.length) { err.textContent = "まだ入っていません: " + miss.join("・"); err.hidden = false; return; }
+  err.hidden = true;
+  const rows = [["会社", d.company], ["区分", d.kubun], ["発注者名", d.hacchusha], ["工種", d.koshu],
+    ["工事名", d.kojimei], ["予定登録", d.yotei ? "はい（見積依頼だけ）" : "いいえ（施工が決まっている）"]];
+  if (d.memo) rows.push(["メモ", d.memo]);
+  $("confList").innerHTML = "";
+  for (const [k, v] of rows) {
+    const div = document.createElement("div");
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); dd.textContent = v;
+    div.append(dt, dd); $("confList").appendChild(div);
+  }
+  $("sendErr").hidden = true;
+  show("vConf");
+}
+
+async function send() {
+  const btns = $("bar").querySelectorAll("button");
+  btns.forEach((b) => (b.disabled = true));
+  btns[1].textContent = "送っています…";
+  const d = formData();
+  const err = $("sendErr");
+  try {
+    const r = await post({ action: "daichoForm", key: store.get(LS_KEY), data: d });
+    if (r.ok) { saveHistory(d.hacchusha); show("vDone"); return; }
+    if (r.error === "合言葉が違います") { store.del(LS_KEY); show("vKey"); return; }
+    err.textContent = r.error || "登録できませんでした";
+  } catch (e) {
+    err.textContent = "つながりませんでした。届いたか分からないので、二重にならないよう LINE WORKS を見てから送り直してください";
+  }
+  err.hidden = false;
+  btns.forEach((b) => (b.disabled = false));
+  btns[1].textContent = "登録する";
+}
+
+function reset() {
+  Object.assign(state, { company: state.company, kubun: "", koshu: "", yotei: "1" });
+  for (const id of ["hacchusha", "kojimei", "memo"]) $(id).value = "";
+  document.querySelectorAll(".chips").forEach((box) => box.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String((b.dataset.v || b.textContent) === state[box.dataset.name]))));
+  show("vForm");
+}
+
+loadHistory();
+show(store.get(LS_KEY) ? "vForm" : "vKey");
+</script>
+</body>
+</html>
